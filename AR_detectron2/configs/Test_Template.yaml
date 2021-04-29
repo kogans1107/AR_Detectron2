@@ -1,0 +1,23 @@
+_BASE_: "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
+MODEL:
+  WEIGHTS: "detectron2://output/Yolact_Test1/model_final/data.pkl"
+  MASK_ON: True
+  ROI_HEADS:
+    NUM_CLASSES: 38
+    BATCH_SIZE_PER_IMAGE: 128
+    
+DATASETS:
+  TRAIN: ("yolact_train",)
+  TEST: ("yolact_val",)
+SOLVER:
+  IMS_PER_BATCH: 2
+  BASE_LR: 0.00025
+  STEPS: []
+
+DATALOADER:
+  # proposals are part of the dataset_dicts, and take a lot of RAM
+  NUM_WORKERS: 2
+  
+VERSION: 2
+
+

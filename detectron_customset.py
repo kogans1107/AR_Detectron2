@@ -206,13 +206,15 @@ trainer.train()
 
 from detectron2.structures import BoxMode
 error_list = []
-def get_data_dicts(img_dir):
+def get_data_dicts(name_json):
+    error_list = []
     # os.chdir('/media/karrington/FantomHD/AR_yolact/data/coco/images')
     # img_dir = '/media/karrington/FantomHD/AR_yolact/data/coco/images'
-    json_file = uichoosefile()
+    img_dir = './coco_yolact_data/images'
+    json_file = './coco_yolact_data/annotations/' + name_json
     with open(json_file) as f:
         imgs_anns = json.load(f)
-
+    
     dataset_dicts = []
     ann_len = len(imgs_anns['annotations'])
     
@@ -231,11 +233,11 @@ def get_data_dicts(img_dir):
             record["image_id"] = img_id
             record["height"] = images[img_id]['height']
             record["width"] = images[img_id]['width']
-           
-          
-      
+            
+            
+            
             objs = []
-    
+            
             obj = {
                 "bbox": a['bbox'],
                 "bbox_mode": BoxMode.XYWH_ABS,
@@ -248,9 +250,15 @@ def get_data_dicts(img_dir):
         except IndexError:
             error_list.append(img_id)
             #print('error',img_id)
- 
+    
     #os.chdir('/media/karrington/FantomHD/detectron2/')
     return dataset_dicts
+
+
+
+yolact_val_metadata = MetadataCatalog.get('yolact_val')
+
+yolact_train_metadata = MetadataCatalog.get('yolact_train')
 
 for d in ["train", "val"]:
     DatasetCatalog.register("balloon_" + d, lambda d=d: get_balloon_dicts("balloon/" + d))

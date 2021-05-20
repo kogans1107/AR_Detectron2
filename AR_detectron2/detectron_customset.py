@@ -205,7 +205,7 @@ trainer.train()
 # register_coco_instances("my_dataset_val", {}, "json_annotation_val.json", "path/to/image/dir")
 
 from detectron2.structures import BoxMode
-error_list = ()
+error_list = []
 def get_data_dicts(img_dir):
     # os.chdir('/media/karrington/FantomHD/AR_yolact/data/coco/images')
     # img_dir = '/media/karrington/FantomHD/AR_yolact/data/coco/images'

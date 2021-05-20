@@ -167,6 +167,10 @@ class Augmentation:
             f"{type(self)}.get_transform must return an instance of Transform! "
             "Got {type(tfm)} instead."
         )
+        
+#        breakpoint()
+#        print('In __call__, transform is:', tfm.__name__)
+        
         aug_input.transform(tfm)
         return tfm
 

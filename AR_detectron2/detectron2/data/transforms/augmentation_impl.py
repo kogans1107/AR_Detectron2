@@ -487,3 +487,206 @@ class RandomLighting(Augmentation):
         return BlendTransform(
             src_image=self.eigen_vecs.dot(weights * self.eigen_vals), src_weight=1.0, dst_weight=1.0
         )
+
+
+
+class Shrinker(Augmentation):
+    """
+    This method returns a copy of this image, with all annotated objects shrunk by a random factor
+    """
+
+    def __init__(self, smallest=0.33):
+        """
+        Args:
+            smallest (float): The smallest factor by which objects will be scaled. 
+        """
+        super().__init__()
+
+    def get_transform(self, image, masks, boxes, labels):
+        h, w = image.shape[:2]
+        center = None
+        if self.is_range:
+            angle = np.random.uniform(self.angle[0], self.angle[1])
+            if self.center is not None:
+                center = (
+                    np.random.uniform(self.center[0][0], self.center[1][0]),
+                    np.random.uniform(self.center[0][1], self.center[1][1]),
+                )
+        else:
+            angle = np.random.choice(self.angle)
+            if self.center is not None:
+                center = np.random.choice(self.center)
+
+        if center is not None:
+            center = (w * center[0], h * center[1])  # Convert to absolute coordinates
+
+        if angle % 360 == 0:
+            return NoOpTransform()
+
+        return RotationTransform(h, w, angle, expand=self.expand, center=center, interp=self.interp)
+
+
+"""
+class Shrinker(object): 
+    #  I want to zoom out some of our images so that objects appear smaller. 
+    #    WJP
+        
+    def __call__(self, image, masks, boxes, labels):
+#        if random.randint(2)<0:
+        if rs.randint(2):
+            return image, masks, boxes, labels
+        
+        ratio = rs.uniform(0.33,0.9)
+
+        masksum = np.zeros(masks.shape[1:])
+        ioverlap = []
+        n_more_than_one = 0
+        for i, m in enumerate(masks):
+            masksum += m
+            nmto_new = np.sum(masksum > 1)
+            if nmto_new > n_more_than_one:
+                n_more_than_one = nmto_new
+                ioverlap.append(i)
+        #
+        #   Check all the masks that have overlap, and drop some of them until 
+        #       no masks have overlap. 
+        use_mask = [True] * len(masks)
+        if n_more_than_one > 0:
+            for io in ioverlap:
+                for j in range(io):
+                    if use_mask[j] and use_mask[io]:
+                        if rs.randint(2):
+                            use_mask[io] = False
+                        else:
+                            use_mask[j] = False
+                            
+
+        height, width, depth = image.shape
+        xx, yy = np.meshgrid(np.arange(width), np.arange(height))
+                
+        r = ratio
+        ishrnk = np.zeros(image.shape)
+        newmasksum = np.zeros(masks.shape[1:])
+        
+        for imask, m in enumerate(masks):
+            if not use_mask[imask]:
+                masksum = masksum - m 
+                continue    # skip everything for all but one of each crowd
+            
+            mgtz = m > 0
+            imgtz = np.ravel(xx[mgtz]*height + yy[mgtz]).astype(int)
+            
+            x0, y0 = np.mean(xx[mgtz]), np.mean(yy[mgtz])
+            
+            # F collapes the coordinates of the masked pixels around 
+            #  (x0, y0), by a factor r, since r < 1. 
+            # Use F to find locations of shrunken object pixels, round to
+            #  nearest.
+            F = lambda r: np.asmatrix([[  r,    0,  x0*(1-r)],\
+                                       [  0,    r,  y0*(1-r)],\
+                                       [  0,    0,      1   ]])
+            
+            # xmask and ymask are the coordinates of masked pixels, as rows.
+            ymask = yy[mgtz].reshape((1,-1))
+            xmask = xx[mgtz].reshape((1,-1))
+            # v is a set augmented vectors, compatible with F, based
+            #   on masked pixels, i.e. concatenate the rows into columns, add
+            #   3rd row of 1's. 
+            # v.shape is (3,len(mgtz))
+            v = \
+            np.concatenate((xmask, ymask, np.ones(ymask.shape)), axis=0)
+            xy_p = ((np.matmul(F(r),v))[0:2,:] + 0.5).astype(int)
+            # I had to use np.ravel in the following to avoid what I think 
+            #   is a bug in np.unique. It was giving me "per column" unique
+            #   values, when I had not asked for that. 
+            #
+            # One thing I learned is that xy_p is a matrix, rather than an array,
+            #   which is a distinction I am not used to drawing, and it seems
+            #   to make the difference here. 
+            #
+            iu = np.unique(np.ravel(xy_p[0,:]*height + xy_p[1,:])).astype(int)
+            # iu are the indices to the new mask pixels. 
+            xpu = (iu // height)
+            ypu = (iu % height)
+            
+            xypu = np.concatenate((xpu.reshape(1,-1), \
+                                  ypu.reshape(1,-1), \
+                                  np.ones(ypu.shape).reshape(1,-1)))
+            
+            Finv = np.linalg.inv(F(r))
+            xy_orig = \
+            np.asarray((np.matmul(Finv, xypu)[0:2,:] + 0.5).astype(int))
+            
+            ffs = (xy_orig.shape)[1]
+            x = xy_orig[0,:].reshape(ffs)
+            y = xy_orig[1,:].reshape(ffs)
+            xy_orig[0, x >= width] = width-1
+            xy_orig[0, x < 0] = 0
+            xy_orig[1, y >= height] = height-1
+            xy_orig[1, y < 0] = 0
+            
+            ishrnk[ypu, xpu,:] = image[xy_orig[1,:].T,\
+                                       xy_orig[0,:].T,:].reshape(-1,3)
+            #
+            # Border pixels are those that are in the old mask (imgtz) but not
+            #   in the new mask (iu). "Border" is not really the right name. 
+            #   They are the pixels left vacant when the object shrinks.
+            #
+            ibordset = set(imgtz) - set(iu)
+            ibord = np.fromiter(ibordset, int, len(ibordset))
+            xbord = ibord // height
+            ybord = ibord % height
+            
+            pts3 = np.concatenate((xbord.reshape(1,-1),\
+                                   ybord.reshape(1,-1),\
+                                   np.ones(ybord.shape).reshape(1,-1)))
+            
+            xy_fill = \
+            np.asarray((np.matmul(Finv, pts3)[0:2,:] + 0.5).astype(int))
+            fillshape = (xy_fill.shape)[1]
+            xf = xy_fill[0,:].reshape(fillshape)
+            yf = xy_fill[1,:].reshape(fillshape)
+            
+            all_good = False
+            foldback_reduction = 10
+            while not all_good:
+                wide = xf >= width
+                xy_fill[0, wide] = \
+                (width-1) - (xf[wide]-width)//foldback_reduction
+                
+                neg = xf < 0
+                xy_fill[0, neg] = -xf[neg]//foldback_reduction
+                
+                high = yf >= height
+                xy_fill[1, high] = \
+                (height-1) - (yf[high]-height)//foldback_reduction
+                
+                low = yf < 0
+                xy_fill[1, low] = -yf[low]//foldback_reduction
+                
+                all_good = True  # just do it once for now
+            
+            ishrnk[ybord, xbord, :] = image[xy_fill[1,:].T, \
+                   xy_fill[0,:].T,:].reshape(-1,3)
+            
+            b = boxes[imask]
+            bv = np.asarray([[b[0], b[2]], [b[1], b[3]],[1, 1]])
+            bvp = np.matmul(F(r), bv)
+            xmin, ymin, xmax, ymax = bvp[0,0], bvp[1,0], bvp[0,1], bvp[1,1] 
+            
+            boxes[imask] = np.asarray([xmin, ymin, xmax, ymax])
+
+            # Now shrink the current mask m and accumulate into newmasksum. 
+            m[:] = 0
+            m[ypu, xpu] = 1
+            newmasksum += m
+                    
+        mss = masksum.shape        
+        allmaskcombo = np.asarray(masksum + newmasksum, dtype=np.float)
+        allmaskcombo[allmaskcombo > 0] = 1.0
+        ileave_alone = (1-allmaskcombo.reshape(mss[0], mss[1], 1))*image
+        
+        image = (ishrnk + ileave_alone).astype(np.float32)
+                
+        return image, masks, boxes, labels
+"""

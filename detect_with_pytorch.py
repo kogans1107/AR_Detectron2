@@ -1,3 +1,14 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Sep  1 05:58:55 2021
+
+I wrote this so that I could experiment with a trained model from KTO and 
+see if I could get detections, and then export it to ONNX with D415
+native input image size (720, 1280) and get detections there in onnxruntime,
+and then fingers crossed get detections in Acam2. 
+
+@author: Bill
+"""
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -127,7 +138,7 @@ class CustomDataset(torch.utils.data.Dataset):
         my_annotation["iscrowd"] = iscrowd
         my_annotation["masks"] = masks
         
-        del boxes, labels, masks, areas, iscrowd, img_id, coco_annotation,
+        del boxes, labels, masks, areas, iscrowd, img_id, coco_annotation,\
         this_mask
         torch.cuda.empty_cache()
 
@@ -172,6 +183,13 @@ if __name__=="__main__":
                                   pretrained_backbone=False,\
                                   num_classes=49)
     
+#    print('pick a weights file...')
+#    sd = torch.load(uichoosefile()) 
+    latest_weights_file = \
+    'C:/Users/peria/Desktop/work/Brent Lab/git-repo/AR_Detectron2/save_models/CDC4-5-6-7-8-9CleanRedo89Ers_train.json-20210831_1722.pth'
+    sd = torch.load(latest_weights_file)
+    model.load_state_dict(sd)
+    
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     model = model.to(device)
@@ -182,13 +200,11 @@ if __name__=="__main__":
                               transforms=get_transform()
                               )
 
-    # Batch size
-    train_batch_size = 3
-    # own DataLoader
+    batch_size = 1
     while True:
         try:
             data_loader = torch.utils.data.DataLoader(my_dataset,
-                                                      batch_size=train_batch_size,
+                                                      batch_size=batch_size,
                                                       shuffle=True,
                                                       num_workers=0,
                                                       collate_fn=collate_fn)
@@ -197,9 +213,7 @@ if __name__=="__main__":
             print('While making dataloader:\n',e)
             continue
  
-       
-#    device = 'cpu'
-    
+          
     # DataLoader is iterable over Dataset
     data_loader_iterator = iter(data_loader)
     
@@ -217,36 +231,14 @@ if __name__=="__main__":
         torch.cuda.empty_cache()
         return image_list, annotation_list
 
+    image_list, annotations = get_a_batch()        
+
+    native_size = (720,1280)
+    go_native = torchvision.transforms.Resize(native_size)
+    chk = model.eval()([go_native(image_list[0])])
+
+    img_export = list(go_native(img).to('cpu') for img in image_list)[0]
     
-    print('...calling model in training mode...')
-    loss = torch.tensor(0.0).cuda()
-    optimizer_type = optim.Adam
-    optimizer = optimizer_type(model.parameters(), lr=1e-5)
-
-    for i in range(100):
-        imgs, annotations = get_a_batch()
-        tout = model.train()(imgs, annotations)
-        
-        optimizer.zero_grad() 
-    
-        del loss, annotations, imgs
-        torch.cuda.empty_cache()
-
-        loss = torch.tensor(0.0).cuda()
-        for k,v in tout.items():
-            loss += v
-        
-        del tout
-        torch.cuda.empty_cache()
-
-        loss.backward()
-        optimizer.step()
-        if i % 1 == 0:
-            print(loss.item())
-
-
-#    print('Exporting is commented out...')
-    img_export = list(img.to('cpu') for img in imgs)
     
     model_name = save_dir + 'MaskR-CNN_' + date_for_filename()
     onnx_name = model_name + '.onnx'
@@ -262,7 +254,7 @@ if __name__=="__main__":
                    }
     
     torch.onnx.export(model.to('cpu').eval(), \
-                      [img_export[0]], \
+                      [img_export], \
                       onnx_name, \
                       export_params=True, \
                       do_constant_folding=True, \
@@ -276,7 +268,7 @@ if __name__=="__main__":
     ort_session = onnxruntime.InferenceSession(onnx_name)
     input_name = ort_session.get_inputs()[0].name
 
-    real_image = imgs[0]
+    real_image = go_native(image_list[0])
     ort_inputs = {input_name: to_numpy(real_image)}
     ort_outs = ort_session.run(None, ort_inputs)
 
@@ -294,7 +286,6 @@ if __name__=="__main__":
         plt.figure(2+i)
         plt.imshow(mask[0,:,:])
     
-    sd = torch.load(uichoosefile()) 
     
 # 'C:\\Users\\peria\\Desktop\\work\\Brent Lab\\git-repo\\AR_Detectron2\\save_models\\MaskR-CNN_20210830_2026.onnx'
     

@@ -175,7 +175,6 @@ if __name__=="__main__":
     
 
 
-
     # create own Dataset
     my_dataset = CustomDataset(root=train_data_dir,
                               annotation=train_coco,
@@ -205,19 +204,37 @@ if __name__=="__main__":
 # Karrington, if you put this next block in a loop, you could let it run 
 #    until it finds a messed up mask, i.e. put a break in the else clause.
 # For me it does not take long to find one; probably same for you. 
-    image_list, annotations = data_loader_iterator.next()
     
-    plt.figure(2)
-    imgshow=np.transpose(image_list[0].cpu(), axes=(1,2,0))
-    plt.imshow(imgshow)
+    def hw_match(img1, img2):
+        return img1.shape[0:2] == img2.shape[0:2]
+        
+    
+    fig,ax = plt.subplots(1,2)
 
-    plt.figure(3)
-    maskshow = annotations[0]['masks'][0,:,:].cpu() # I luv computers. So clear!
-    if imgshow.shape[0:2]==maskshow.shape:  # shapes match, whew...
-        plt.imshow(maskshow)
-    else:  # ACK! Shapes do not match!!!
-        fixmask = np.transpose(np.fliplr(maskshow)) # this will make them 
-        plt.imshow(fixmask)                         #   in cases I've seen
+    for i in range(5):
+        try:
+            print(i)
+            image_list, annotations = data_loader_iterator.next()
+            which_image = str(annotations[0]['image_id'].item())
+            
+            imgshow=np.transpose(image_list[0].cpu(), axes=(1,2,0))
+        
+            maskshow = annotations[0]['masks'][0,:,:].cpu() # I luv computers. So clear!
+            if hw_match(imgshow,maskshow):  # shapes match, whew...
+                pass
+            else:  # ACK! Shapes do not match!!!
+                fixmask = np.transpose(np.fliplr(maskshow)) # this will make them 
+                maskshow = fixmask                         #   in cases I've seen
+    
+            ax[0].imshow(imgshow)
+            ax[0].set_title(which_image)
+            ax[1].imshow(imgshow*maskshow.reshape((*maskshow.shape,1)))
+            
+            
+            plt.pause(0.1)
+        except Exception as e:
+            print('Image',which_image,'has a problem...')
+            print(e)
      
 #  end of loop....or just F9 it a few times. 
     

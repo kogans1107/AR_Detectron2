@@ -107,8 +107,11 @@ class myOwnDataset(torch.utils.data.Dataset):
         # path for input image
         path = coco.loadImgs(img_id)[0]['file_name']
         # open the input image
-        img = Image.open(os.path.join(self.root, path))
-
+        #img = Image.open(os.path.join(self.root, path))
+        
+        # img = cv2.imread(os.path.join(self.root, path))
+        
+        img = plt.imread(os.path.join(self.root, path))
         # number of objects in the image
         num_objs = len(coco_annotation)
 
@@ -158,20 +161,21 @@ class myOwnDataset(torch.utils.data.Dataset):
 #             masks.append(this_mask)
 #         masks = torch.as_tensor(masks, dtype=torch.uint8)
         
-        imgshow = np.transpose(img, axes=(1,2,0))
+        
 
         masks = []
         #print(len(coco_annotation))
         for ann in coco_annotation:
             this_mask = coco.annToMask(ann)
-            if imgshow.shape[0:2]==this_mask.shape:
+            if img.shape[0:2]==this_mask.shape:
                 masks.append(this_mask)
             else:
                 #print('imshow: ',imgshow.shape)
                 #print('this_mask: ',this_mask.shape)
                 fixedmask = np.transpose(np.fliplr(this_mask))
-                #print('fixedmask:',fixedmask.shape)
+                print('fixedmask:',fixedmask.shape)
                 masks.append(fixedmask)
+                #masks.append(this_mask)
 #            this_mask = [coco.annToMask(obj).reshape(-1) for obj in target]
             #masks.append(this_mask)
         masks = torch.as_tensor(masks, dtype=torch.uint8)
@@ -239,7 +243,7 @@ class myOwnDataset(torch.utils.data.Dataset):
     
     
 
-train_data_dir = '/media/karrington/FantomHD/coco/images'
+train_data_dir = '/home/karrington/git.workspace/AR_Detectron2/coco_yolact_data/images'
 train_coco = '/home/karrington/Downloads/CDC4-5-6-7-8-9(CleanRedo89Ers)_train.json'
 test_coco = '/home/karrington/Downloads/CDC4-5-6-7-8-9(CleanRedo89Ers)_val.json'
 dataset_name = train_coco.split(sep='/')[-1].split(sep='.')[0].split(sep='_train')[0] + '_'
@@ -247,8 +251,8 @@ save_path = '/home/karrington/git.workspace/vision/weights/' + '_'
 def get_transform(train):
     custom_transforms = []
     custom_transforms.append(torchvision.transforms.ToTensor())
-    if train:
-        custom_transforms.append(torchvision.transforms.RandomHorizontalFlip(0.5))
+    # if train:
+    #     custom_transforms.append(torchvision.transforms.RandomHorizontalFlip(0.5))
     return torchvision.transforms.Compose(custom_transforms)
 
 
@@ -333,7 +337,10 @@ if __name__=="__main__":
               continue
             
         imgs = list(img.to(device) for img in imgs)
+        
+        #imgs = np.array(imgs)
         annotations = [{k: v.to(device) for k, v in t.items()} for t in annotations]
+        
         
         return imgs,annotations
 
@@ -350,46 +357,71 @@ if __name__=="__main__":
                                                step_size=3,
                                                gamma=0.1)
     print('...calling model in training mode...')
-    num_epochs = 10
-    for epoch in range(num_epochs):
-   # train for one epoch, printing every 10 iterations
-       train_one_epoch(model, optimizer, data_loader, device, epoch,
-                   print_freq=10)# update the learning rate
-       lr_scheduler.step()
-   # evaluate on the test dataset
-       evaluate(model, data_loader_test, device=device)
-       torch.save(save_path + dataset_name + epoch + date_for_filename())
+   #  num_epochs = 10
+   #  for epoch in range(num_epochs):
+   # # train for one epoch, printing every 10 iterations
+   #     train_one_epoch(model, optimizer, data_loader, device, epoch,
+   #                 print_freq=10)# update the learning rate
+   #     lr_scheduler.step()
+   # # evaluate on the test dataset
+   #     #evaluate(model, data_loader_test, device=device)
+   #     torch.save(save_path + dataset_name + epoch + date_for_filename())
     
+    #imgs,annotations = get_a_batch()
     
-    # for i in range(10000):
-    #     # imgs, annotations = data_loader_iterator.next()
+    fig,ax = plt.subplots(1,2)
+    
+    for i in range(10000):
+        # imgs, annotations = data_loader_iterator.next()
         
-    #     # imgs = list(img.to(device) for img in imgs)
-    #     # annotations = [{k: v.to(device) for k, v in t.items()} for t in annotations]
-    #     imgs,annotations = get_a_batch()
+        # imgs = list(img.to(device) for img in imgs)
+        # annotations = [{k: v.to(device) for k, v in t.items()} for t in annotations]
+        imgs,annotations = get_a_batch()
+        #print(type(imgs[0]))
         
-    #     tout = model.train()(imgs, annotations)
-    #     optimizer_type = optim.Adam
-    #     optimizer = optimizer_type(model.parameters(), lr=1e-5)
-    #     optimizer.zero_grad() 
+        tout = model.train()(imgs, annotations)
+        optimizer_type = optim.Adam
+        optimizer = optimizer_type(model.parameters(), lr=1e-5)
+        optimizer.zero_grad() 
     
-    #     loss = torch.tensor(0.0).cuda()
-    #     for k,v in tout.items():
-    #         loss += v
+        loss = torch.tensor(0.0).cuda()
+        for k,v in tout.items():
+            loss += v
             
-    #     loss.backward()
-    #     optimizer.step()
-    #     #print(loss)
-    #     epoch = i//len_dataloader
-    #     if i%10 == 0:
-    #         print(f'Epoch:{epoch},Iteration: {i}/{len_dataloader}, Loss: {loss}')
-    #     if i%1000 == 0:
-    #         print('saving {i} iteration to weights')
-    #         torch.save(model.state_dict(),train_coco.split(sep='/')[-1] +'-' + date_for_filename() + '.pth')
+        loss.backward()
+        optimizer.step()
+        #print(loss)
+        epoch = i//len_dataloader
+        ix = np.random.randint(2)
         
-    # img_exp = list(img.to('cpu') for img in imgs)
+        imgshow = np.transpose(imgs[ix].cpu(), axes=(1,2,0))
+        maskshow = annotations[ix]['masks'][0,:,:].cpu()
+        # x = maskshow.shape[0]
+        # y = maskshow.shape[1]
+        ax[0].imshow(imgshow)
+        ax[0].set_title(str(annotations[ix]['image_id']))
+        ax[1].imshow(maskshow.reshape(*maskshow.shape,1)*imgshow)
+        plt.pause(0.1)
+             
+        if i%10 == 0:
+            print(f'Epoch:{epoch},Iteration: {i}/{len_dataloader}, Loss: {loss}')
+            #imgs[0].shape
+            # imgshow = np.transpose(imgs[ix].cpu(), axes=(1,2,0))
+            # maskshow = annotations[ix]['masks'][0,:,:].cpu()
+            # # x = maskshow.shape[0]
+            # # y = maskshow.shape[1]
+            # ax[0].imshow(imgshow)
+            # ax[1].imshow(maskshow.reshape(*maskshow.shape,1)*imgshow)
+            # plt.pause(0.1)
+             
+            
+        if i%1000 == 0:
+            print('saving {i} iteration to weights')
+            torch.save(model.state_dict(),train_coco.split(sep='/')[-1] +'-' + date_for_filename() + '.pth')
+        
+    img_exp = list(img.to('cpu') for img in imgs)
     
-    # torch.onnx.export(model.to('cpu').eval(), img_exp,\
+    #torch.onnx.export(model.to('cpu').eval(), img_exp,\
     #                   'MaskR-CNN_' + date_for_filename() + '.onnx',\
     #                   verbose=True, opset_version=11)
     # #imgs = list(img.to(device) for img in imgs)

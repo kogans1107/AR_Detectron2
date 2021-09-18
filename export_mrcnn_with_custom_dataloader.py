@@ -183,7 +183,7 @@ if __name__=="__main__":
                               )
 
     # Batch size
-    train_batch_size = 3
+    train_batch_size = 1
     # own DataLoader
     while True:
         try:
@@ -218,18 +218,25 @@ if __name__=="__main__":
         return image_list, annotation_list
 
     
-    print('...calling model in training mode...')
     loss = torch.tensor(0.0).cuda()
     optimizer_type = optim.Adam
     optimizer = optimizer_type(model.parameters(), lr=1e-5)
 
-    for i in range(100):
+    while True:
         imgs, annotations = get_a_batch()
+        plt.imshow(np.transpose(imgs[0].cpu(), axes=(1,2,0)))
+        plt.pause(0.1)
+        if input('ok?')=='y':
+            break
+    
+    print('...calling model in training mode...')
+    for i in range(1000):
+#        imgs, annotations = get_a_batch()
         tout = model.train()(imgs, annotations)
         
         optimizer.zero_grad() 
     
-        del loss, annotations, imgs
+#        del loss, annotations, imgs
         torch.cuda.empty_cache()
 
         loss = torch.tensor(0.0).cuda()
@@ -241,17 +248,17 @@ if __name__=="__main__":
 
         loss.backward()
         optimizer.step()
-        if i % 1 == 0:
-            print(loss.item())
+        if i % 10 == 0:
+            print(i, loss.item())
 
-
-#    print('Exporting is commented out...')
-    img_export = list(img.to('cpu') for img in imgs)
-    
     model_name = save_dir + 'MaskR-CNN_' + date_for_filename()
     onnx_name = model_name + '.onnx'
 
     torch.save(model.state_dict(), model_name + '_weights.pth')
+    assert(1==0)
+#    print('Exporting is commented out...')
+    img_export = list(img.to('cpu') for img in imgs)
+    
         
     input_names = ['image']
     output_names = ['boxes','labels','scores','masks']
@@ -294,7 +301,6 @@ if __name__=="__main__":
         plt.figure(2+i)
         plt.imshow(mask[0,:,:])
     
-    sd = torch.load(uichoosefile()) 
     
 # 'C:\\Users\\peria\\Desktop\\work\\Brent Lab\\git-repo\\AR_Detectron2\\save_models\\MaskR-CNN_20210830_2026.onnx'
     

@@ -189,7 +189,7 @@ if __name__=="__main__":
         try:
             data_loader = torch.utils.data.DataLoader(my_dataset,
                                                       batch_size=train_batch_size,
-                                                      shuffle=True,
+                                                      shuffle=False,
                                                       num_workers=0,
                                                       collate_fn=collate_fn)
             break
@@ -211,11 +211,11 @@ if __name__=="__main__":
     
     fig,ax = plt.subplots(1,2)
 
-    for i in range(5):
+    for image_list, annotations in data_loader:
         try:
-            print(i)
-            image_list, annotations = data_loader_iterator.next()
-            which_image = str(annotations[0]['image_id'].item())
+            which_image = annotations[0]['image_id'].item()
+            if which_image > 100:
+                break
             
             imgshow=np.transpose(image_list[0].cpu(), axes=(1,2,0))
         
@@ -227,7 +227,7 @@ if __name__=="__main__":
                 maskshow = fixmask                         #   in cases I've seen
     
             ax[0].imshow(imgshow)
-            ax[0].set_title(which_image)
+            ax[0].set_title(str(which_image))
             ax[1].imshow(imgshow*maskshow.reshape((*maskshow.shape,1)))
             
             
@@ -236,6 +236,5 @@ if __name__=="__main__":
             print('Image',which_image,'has a problem...')
             print(e)
      
-#  end of loop....or just F9 it a few times. 
     
     

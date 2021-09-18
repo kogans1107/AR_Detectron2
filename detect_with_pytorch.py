@@ -32,6 +32,7 @@ import torch
 import torch.utils.data
 import torchvision
 from torchvision.models.detection.mask_rcnn import maskrcnn_resnet50_fpn
+from torch.nn import Identity
 
 import onnx, onnxruntime
 
@@ -183,22 +184,42 @@ if __name__=="__main__":
                                   pretrained_backbone=False,\
                                   num_classes=49)
     
-#    print('pick a weights file...')
-#    sd = torch.load(uichoosefile()) 
-    latest_weights_file = \
-    'C:/Users/peria/Desktop/work/Brent Lab/git-repo/AR_Detectron2/save_models/CDC4-5-6-7-8-9CleanRedo89Ers_train.json-20210831_1722.pth'
-    sd = torch.load(latest_weights_file)
+    print('pick a weights file...')
+    weights_file_name = uichoosefile()
+    sd = torch.load(weights_file_name) 
+#    latest_weights_file = \
+#    'C:/Users/peria/Desktop/work/Brent Lab/git-repo/AR_Detectron2/save_models/CDC4-5-6-7-8-9CleanRedo89Ers_train.json-20210831_1722.pth'
+
+#    latest_weights_file = \
+#    'C:/Users/peria/Desktop/work/Brent Lab/git-repo/AR_Detectron2/save_models/MaskR-CNN_20210901_1231_weights.pth'
+#    sd = torch.load(latest_weights_file)
     model.load_state_dict(sd)
     
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     model = model.to(device)
 
+## I think normalize is being done twice. try removing from model. Would probably
+##    make more sense to keep it in the model and load unnormalized images from the 
+##   dataloader.     
+#    for i,nmt in enumerate(model.named_modules()):
+#        if i==1:
+#            nm = list(nmt)
+#            print(i,nm[0])
+#            nm[0] = 'null_transform'
+#            nm[1] = Identity()
+#            print(i,nm[0])
+
+
     # create own Dataset
     my_dataset = CustomDataset(root=train_data_dir,
                               annotation=train_coco,
                               transforms=get_transform()
                               )
+#    my_dataset = CustomDataset(root=train_data_dir,
+#                              annotation=train_coco,
+#                              transforms=torchvision.transforms.ToTensor()
+#                              )
 
     batch_size = 1
     while True:
@@ -231,12 +252,22 @@ if __name__=="__main__":
         torch.cuda.empty_cache()
         return image_list, annotation_list
 
-    image_list, annotations = get_a_batch()        
-
-    native_size = (720,1280)
+    native_size = (720,1280)  # for the D415 camera
     go_native = torchvision.transforms.Resize(native_size)
-    chk = model.eval()([go_native(image_list[0])])
 
+    while True:
+        image_list, annotations = get_a_batch()        
+        chk = model.eval()([go_native(image_list[0])])
+        the_scores = [c.item() for c in chk[0]['scores']]
+        if len(the_scores) > 0:
+            break
+        else:
+            print('I got nuthin....')
+    
+    print('Here are the scores:\n', the_scores)
+    
+    assert(1==0)
+    
     img_export = list(go_native(img).to('cpu') for img in image_list)[0]
     
     
